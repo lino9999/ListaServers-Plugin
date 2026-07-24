@@ -14,7 +14,7 @@ Il plugin è progettato per essere leggero e sicuro. Trasmette i seguenti dati p
 
 1. **API Key**: Un token di autenticazione univoco che collega il tuo server alla tua dashboard su ListaServers.it.
 2. **Lista Giocatori**: Un array contenente l'UUID e l'Username di ogni giocatore attualmente connesso al server.
-3. **Versione Server**: La versione del server configurata nel file `config.json`, utile per far sapere agli utenti quale versione del gioco è richiesta per entrare.
+3. **Versione Server**: La versione del server recuperata automaticamente dall'infrastruttura di gioco, utile per far sapere agli utenti quale versione del gioco è richiesta per entrare.
 
 Questa architettura ti permette di installare il plugin su **server multipli** (es. in un Network) utilizzando l'esatta stessa API Key. L'API di ListaServers aggregherà automaticamente i giocatori, filtrando i duplicati senza bisogno di configurazioni complesse per i vari nodi.
 
@@ -26,7 +26,7 @@ Non vengono trasmessi log delle chat, indirizzi IP o configurazioni sensibili de
 2. Inserisci il file nella cartella `mods` del tuo server Hytale.
 3. Avvia il server una prima volta per generare il file di configurazione predefinito.
 4. Spegni il server e apri il file `mods/ListaServers/config.json`.
-5. Inserisci la tua API Key (generata dalla dashboard di ListaServers.it) e, se necessario, aggiorna la versione del server.
+5. Inserisci la tua API Key (generata dalla dashboard di ListaServers.it).
 6. Riavvia il server, oppure se è già acceso usa semplicemente il comando `/listaservers reload`. Il plugin si connetterà e inizierà a inviare i dati automaticamente.
 
 ## Comandi in Gioco
@@ -37,7 +37,7 @@ Il plugin fornisce un comando base per gestire la connessione direttamente dalla
   Mostra lo stato attuale della connessione, inclusi il numero di errori consecutivi (se presenti), il tempo trascorso dall'ultima trasmissione di dati avvenuta con successo e il numero di giocatori attualmente letto.
 
 - `/listaservers reload`
-  Ricarica il file `config.json`. Utile se modifichi la tua API Key o la versione del server mentre il server è in esecuzione, senza dover riavviare l'intero server.
+  Ricarica il file `config.json`. Utile se modifichi la tua API Key mentre il server è in esecuzione, senza dover riavviare l'intero server.
 
 - `/listaservers ping`
   Forza una trasmissione immediata dei dati all'API di ListaServers, ignorando l'intervallo programmato di 60 secondi. Ideale per testare se la connessione e l'API Key funzionano correttamente.

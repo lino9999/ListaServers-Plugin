@@ -8,6 +8,7 @@ import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.Universe;
+import com.hypixel.hytale.common.util.java.ManifestUtil;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -36,7 +37,6 @@ public class ListaServersPlugin extends JavaPlugin {
     private final HttpClient httpClient;
     private ScheduledExecutorService scheduler;
     private String apiKey = DEFAULT_KEY;
-    private String serverVersion = "1.0.0";
 
     private volatile int lastPlayerCount = 0;
     private volatile Instant lastSuccessfulUpdate = null;
@@ -124,8 +124,7 @@ public class ListaServersPlugin extends JavaPlugin {
         file.getParentFile().mkdirs();
         String config = """
             {
-              "api_key": "%s",
-              "server_version": "1.0.0"
+              "api_key": "%s"
             }
             """.formatted(DEFAULT_KEY);
         Files.writeString(file.toPath(), config, StandardCharsets.UTF_8);
@@ -147,12 +146,6 @@ public class ListaServersPlugin extends JavaPlugin {
             }
         } else {
             logError("Formato config.json non valido!");
-        }
-
-        Pattern versionPattern = Pattern.compile("\"server_version\"\\s*:\\s*\"([^\"]+)\"");
-        Matcher versionMatcher = versionPattern.matcher(content);
-        if (versionMatcher.find()) {
-            serverVersion = versionMatcher.group(1).trim();
         }
     }
 
@@ -217,6 +210,9 @@ public class ListaServersPlugin extends JavaPlugin {
     }
 
     private String buildJsonPayload(java.util.Collection<com.hypixel.hytale.server.core.universe.PlayerRef> players) {
+        String serverVersion = ManifestUtil.getImplementationVersion();
+        if (serverVersion == null) serverVersion = "unknown";
+        
         StringBuilder sb = new StringBuilder();
         sb.append("{\"apiKey\":\"").append(escapeJson(apiKey))
           .append("\",\"serverVersion\":\"").append(escapeJson(serverVersion))
