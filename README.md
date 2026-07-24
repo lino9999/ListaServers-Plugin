@@ -27,7 +27,7 @@ Non vengono trasmessi log delle chat, indirizzi IP o configurazioni sensibili de
 3. Avvia il server una prima volta per generare il file di configurazione predefinito.
 4. Spegni il server e apri il file `mods/ListaServers/config.json`.
 5. Inserisci la tua API Key (generata dalla dashboard di ListaServers.it) e, se necessario, aggiorna la versione del server.
-6. Riavvia il server. Il plugin si connetterà e inizierà a inviare i dati automaticamente.
+6. Riavvia il server, oppure se è già acceso usa semplicemente il comando `/listaservers reload`. Il plugin si connetterà e inizierà a inviare i dati automaticamente.
 
 ## Comandi in Gioco
 
