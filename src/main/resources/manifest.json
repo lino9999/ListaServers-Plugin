@@ -1,0 +1,13 @@
+{
+  "Group": "it.listaservers",
+  "Name": "ListaServers",
+  "Version": "1.0.0",
+  "Main": "it.listaservers.plugin.ListaServersPlugin",
+  "Description": "Invia in tempo reale le statistiche del server a ListaServers.it",
+  "Authors": [
+    {
+      "Name": "Lino"
+    }
+  ],
+  "ServerVersion": "*"
+}

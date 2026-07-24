@@ -1,0 +1,19 @@
+# Cartelle di compilazione Gradle
+/.gradle/
+/build/
+
+# Ignora il server pesante
+libs/HytaleServer.jar
+
+# Configurazione personale di IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+
+# File di Log e Crash
+*.log
+hs_err_pid*
+
+# File temporanei di Windows / Mac
+Thumbs.db
+.DS_Store
