@@ -342,22 +342,12 @@ public class ListaServersPlugin extends JavaPlugin {
     private String buildPlayersJson(Universe universe) {
         StringBuilder playersJson = new StringBuilder("[");
         boolean first = true;
-        try {
-            for (Object playerObj : universe.getPlayers()) {
-                if (!first) playersJson.append(",");
-                first = false;
-                String name = "";
-                String uuid = "";
-                try {
-                    name = (String) playerObj.getClass().getMethod("getName").invoke(playerObj);
-                    uuid = playerObj.getClass().getMethod("getUuid").invoke(playerObj).toString();
-                } catch (Exception e) {
-                    name = "Unknown";
-                    uuid = UUID.randomUUID().toString();
-                }
-                playersJson.append(String.format("{\"uuid\":\"%s\",\"name\":\"%s\"}", escapeJson(uuid), escapeJson(name)));
-            }
-        } catch (Exception ignored) {}
+        java.util.Collection<com.hypixel.hytale.server.core.universe.PlayerRef> players = universe.getPlayers();
+        for (com.hypixel.hytale.server.core.universe.PlayerRef p : players) {
+            if (!first) playersJson.append(",");
+            playersJson.append(String.format("{\"uuid\":\"%s\",\"name\":\"%s\"}", escapeJson(p.getUuid().toString()), escapeJson(p.getUsername())));
+            first = false;
+        }
         playersJson.append("]");
         return playersJson.toString();
     }
