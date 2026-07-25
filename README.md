@@ -50,3 +50,57 @@ Se desideri compilare il plugin autonomamente:
 2. Inserisci il file `HytaleServer.jar` all'interno della cartella `libs/`.
 3. Apri un terminale nella cartella principale del progetto ed esegui `./gradlew build`.
 4. Il plugin compilato sarà disponibile all'interno della cartella `build/libs/`.
+
+## Implementazione per altre Liste Server
+
+Questo plugin supporta l'invio simultaneo delle statistiche a più liste server tramite l'aggiunta di endpoint multipli nel file `config.json`. 
+Se gestisci una lista server Hytale e vuoi permettere ai tuoi utenti di utilizzare questo plugin per sincronizzare il loro server con la tua piattaforma, devi implementare un endpoint API in grado di ricevere e processare i dati.
+
+### Specifiche dell'Endpoint
+
+Il plugin effettua una singola richiesta HTTP `POST` asincrona ogni 60 secondi verso l'URL specificato dall'utente nella configurazione.
+
+**Headers della richiesta:**
+- `Content-Type: application/json`
+- `Accept: application/json`
+- `User-Agent: ListaServers-Plugin/1.0.0`
+
+**Corpo della richiesta (JSON):**
+```json
+{
+  "apiKey": "LA_CHIAVE_API_DELL_UTENTE",
+  "serverVersion": "1.0.0",
+  "players": [
+    {
+      "uuid": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "PlayerUno"
+    },
+    {
+      "uuid": "110e8400-e29b-41d4-a716-446655441111",
+      "name": "PlayerDue"
+    },
+    {
+      "uuid": "220e8400-e29b-41d4-a716-446655442222",
+      "name": "PlayerTre"
+    }
+  ]
+}
+```
+
+### Dettagli sui Dati
+- **apiKey**: La stringa inserita dall'utente nel file di configurazione, essenziale per autenticare e identificare a quale server appartengono le statistiche.
+- **serverVersion**: La versione del server Hytale.
+- **players**: La lista esatta dei giocatori online al momento dell'invio. 
+
+### Risposte e Codici di Stato
+Il plugin considera la sincronizzazione andata a buon fine solo se il tuo endpoint restituisce un codice di stato HTTP compreso tra `200` e `299`.
+Se restituisci un codice di errore (ad esempio `401 Unauthorized` o `400 Bad Request`), l'errore verrà registrato all'interno della console del server Hytale assieme ai primi 100 caratteri del corpo della tua risposta. Questo ti permette di inviare messaggi di errore testuali (es. "API Key non valida") che l'utente potra' leggere nei propri log.
+
+Per invitare gli utenti a usare il plugin per il tuo sito, ti basta fornire loro questo blocco di esempio da incollare nell'array `endpoints` del loro file `config.json`:
+
+```json
+{
+  "url": "https://api.tuosito.it/v1/ping",
+  "api_key": "LA_CHIAVE_API_UTENTE"
+}
+```

@@ -8,7 +8,6 @@ import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.Universe;
-import com.hypixel.hytale.common.util.java.ManifestUtil;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -20,24 +19,40 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
+import java.io.IOException;
 import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ListaServersPlugin extends JavaPlugin {
 
-    private static final String API_URL = "https://listaservers.it/api/v1/servers/ping";
+    private static class EndpointConfig {
+        String url;
+        String apiKey;
+        EndpointConfig(String url, String apiKey) {
+            this.url = url;
+            this.apiKey = apiKey;
+        }
+    }
+
+    private static final String DEFAULT_ENDPOINT = "https://listaservers.it/api/v1/servers/ping";
     private static final String CONFIG_PATH = "mods/ListaServers/config.json";
-    private static final String DEFAULT_KEY = "INSERISCI_QUI_LA_TUA_API_KEY";
+    private static final String DEFAULT_KEY = "INSERISCI_QUI_LA_TUA_CHIAVE";
 
     private static final int UPDATE_INTERVAL_SECONDS = 60;
     private static final int INITIAL_DELAY_SECONDS = 10;
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(30);
+    private static final int MAX_RETRY_ATTEMPTS = 3;
 
     private final HttpClient httpClient;
     private ScheduledExecutorService scheduler;
-    private String apiKey = DEFAULT_KEY;
+    private final String nodeId = UUID.randomUUID().toString();
+    private List<EndpointConfig> endpoints = new ArrayList<>();
 
+    // Statistiche runtime
     private volatile int lastPlayerCount = 0;
     private volatile Instant lastSuccessfulUpdate = null;
     private volatile int consecutiveFailures = 0;
@@ -61,7 +76,8 @@ public class ListaServersPlugin extends JavaPlugin {
         startScheduler();
         registerCommands();
 
-        log("Plugin avviato con successo! Connesso a ListaServers.it");
+        log("Plugin avviato con successo!");
+        log("Node ID: " + nodeId);
         log("Intervallo aggiornamento: " + UPDATE_INTERVAL_SECONDS + "s");
     }
 
@@ -124,28 +140,124 @@ public class ListaServersPlugin extends JavaPlugin {
         file.getParentFile().mkdirs();
         String config = """
             {
-              "api_key": "%s"
+              // ==========================================================
+              // COME INVIARE LE STATISTICHE A PIÙ LISTE SERVER
+              // ==========================================================
+              // Se vuoi inviare le statistiche anche ad un'altra lista server italiana,
+              // ti basta copiare e incollare il blocco qui sotto (aggiungendo una virgola).
+              // 
+              // ESEMPIO:
+              // "endpoints": [
+              //   {
+              //     "url": "https://listaservers.it/api/v1/servers/ping",
+              //     "api_key": "LA_TUA_CHIAVE"
+              //   },
+              //   {
+              //     "url": "https://altra-lista.com/api/ping",
+              //     "api_key": "CHIAVE_ALTRA_LISTA"
+              //   }
+              // ]
+              
+              "endpoints": [
+                {
+                  "url": "%s",
+                  "api_key": "%s"
+                }
+              ]
             }
-            """.formatted(DEFAULT_KEY);
+            """.formatted(DEFAULT_ENDPOINT, DEFAULT_KEY);
         Files.writeString(file.toPath(), config, StandardCharsets.UTF_8);
+        
         log("File config.json creato in " + CONFIG_PATH);
-        log("Inserisci la tua API Key di ListaServers per attivare il plugin.");
+        log("Inserisci la tua API Key per attivare il plugin.");
     }
 
     private void parseConfig(String content) {
-        Pattern pattern = Pattern.compile("\"api_key\"\\s*:\\s*\"([^\"]+)\"");
-        Matcher matcher = pattern.matcher(content);
-
-        if (matcher.find()) {
-            String key = matcher.group(1).trim();
-            if (!key.isEmpty() && !key.equals(DEFAULT_KEY)) {
-                apiKey = key;
-                log("API Key caricata con successo.");
-            } else if (key.equals(DEFAULT_KEY)) {
-                log("ATTENZIONE: API Key non configurata! Il plugin non invierà dati.");
+        endpoints.clear();
+        
+        // Controllo se è un vecchio config (api_key nella root)
+        Pattern oldKeyPattern = Pattern.compile("\"api_key\"\\s*:\\s*\"([^\"]+)\"");
+        Matcher oldKeyMatcher = oldKeyPattern.matcher(content);
+        boolean hasOldRootKey = false;
+        
+        // Verifica rapida: se non ha "endpoints", probabilmente è il vecchio formato
+        if (!content.contains("\"endpoints\"") && oldKeyMatcher.find()) {
+            hasOldRootKey = true;
+            String oldKey = oldKeyMatcher.group(1).trim();
+            log("Rilevato config nel vecchio formato. Migrazione in corso...");
+            
+            endpoints.add(new EndpointConfig(DEFAULT_ENDPOINT, oldKey));
+            
+            // Riscrive il file nel nuovo formato
+            String migratedConfig = """
+                {
+                  // ==========================================================
+                  // COME INVIARE LE STATISTICHE A PIÙ LISTE SERVER
+                  // ==========================================================
+                  // Se vuoi inviare le statistiche anche ad un'altra lista server italiana,
+                  // ti basta copiare e incollare il blocco qui sotto (aggiungendo una virgola).
+                  // 
+                  // ESEMPIO:
+                  // "endpoints": [
+                  //   {
+                  //     "url": "https://listaservers.it/api/v1/servers/ping",
+                  //     "api_key": "LA_TUA_CHIAVE"
+                  //   },
+                  //   {
+                  //     "url": "https://altra-lista.com/api/ping",
+                  //     "api_key": "CHIAVE_ALTRA_LISTA"
+                  //   }
+                  // ]
+                  
+                  "endpoints": [
+                    {
+                      "url": "%s",
+                      "api_key": "%s"
+                    }
+                  ]
+                }
+                """.formatted(DEFAULT_ENDPOINT, oldKey);
+            try {
+                Files.writeString(new File(CONFIG_PATH).toPath(), migratedConfig, StandardCharsets.UTF_8);
+                log("Migrazione completata con successo!");
+            } catch (IOException e) {
+                logError("Impossibile salvare il config migrato: " + e.getMessage());
             }
+            return;
+        }
+
+        Pattern endpointPattern = Pattern.compile("\"endpoints\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
+        Matcher endpointMatcher = endpointPattern.matcher(content);
+        if (endpointMatcher.find()) {
+            String arrayContent = endpointMatcher.group(1);
+            
+            Pattern objectPattern = Pattern.compile("\\{(.*?)\\}", Pattern.DOTALL);
+            Matcher objectMatcher = objectPattern.matcher(arrayContent);
+            
+            while (objectMatcher.find()) {
+                String objContent = objectMatcher.group(1);
+                
+                Pattern urlPattern = Pattern.compile("\"url\"\\s*:\\s*\"([^\"]+)\"");
+                Matcher urlMatcher = urlPattern.matcher(objContent);
+                
+                Pattern keyPattern = Pattern.compile("\"api_key\"\\s*:\\s*\"([^\"]+)\"");
+                Matcher keyMatcher = keyPattern.matcher(objContent);
+                
+                if (urlMatcher.find() && keyMatcher.find()) {
+                    String url = urlMatcher.group(1).trim();
+                    String key = keyMatcher.group(1).trim();
+                    if (!url.isEmpty() && !key.isEmpty()) {
+                        endpoints.add(new EndpointConfig(url, key));
+                    }
+                }
+            }
+        }
+
+        if (endpoints.isEmpty()) {
+            endpoints.add(new EndpointConfig(DEFAULT_ENDPOINT, DEFAULT_KEY));
+            log("Nessun endpoint valido trovato nel config, utilizzo quello di default.");
         } else {
-            logError("Formato config.json non valido!");
+            log("Trovati " + endpoints.size() + " endpoints nel config.");
         }
     }
 
@@ -165,16 +277,21 @@ public class ListaServersPlugin extends JavaPlugin {
         Universe universe = Universe.get();
         if (universe == null) return;
 
-        java.util.Collection<com.hypixel.hytale.server.core.universe.PlayerRef> players = universe.getPlayers();
-        lastPlayerCount = players.size();
+        int players = universe.getPlayers().size();
+        lastPlayerCount = players;
 
-        String json = buildJsonPayload(players);
-        HttpRequest request = buildRequest(json);
+        String playersJsonArray = buildPlayersJson(universe);
 
-        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .orTimeout(HTTP_TIMEOUT.toSeconds(), TimeUnit.SECONDS)
-                .thenAccept(this::handleResponse)
-                .exceptionally(this::handleError);
+        for (EndpointConfig endpoint : endpoints) {
+            if (endpoint.apiKey.equals(DEFAULT_KEY)) continue;
+            
+            String json = buildJsonPayload(playersJsonArray, endpoint.apiKey);
+            HttpRequest request = buildRequest(json, endpoint.url);
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .orTimeout(HTTP_TIMEOUT.toSeconds(), TimeUnit.SECONDS)
+                    .thenAccept(response -> handleResponse(response, endpoint.url))
+                    .exceptionally(e -> handleError(e, endpoint.url));
+        }
     }
 
     public CompletableFuture<Boolean> sendUpdateAsync() {
@@ -187,50 +304,76 @@ public class ListaServersPlugin extends JavaPlugin {
             return CompletableFuture.completedFuture(false);
         }
 
-        java.util.Collection<com.hypixel.hytale.server.core.universe.PlayerRef> players = universe.getPlayers();
-        lastPlayerCount = players.size();
+        int players = universe.getPlayers().size();
+        lastPlayerCount = players;
 
-        String json = buildJsonPayload(players);
-        HttpRequest request = buildRequest(json);
+        String playersJsonArray = buildPlayersJson(universe);
+        
+        CompletableFuture<Boolean> overallFuture = CompletableFuture.completedFuture(true);
 
-        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .orTimeout(HTTP_TIMEOUT.toSeconds(), TimeUnit.SECONDS)
-                .thenApply(response -> {
-                    handleResponse(response);
-                    return response.statusCode() >= 200 && response.statusCode() < 300;
-                })
-                .exceptionally(e -> {
-                    handleError(e);
-                    return false;
-                });
+        for (EndpointConfig endpoint : endpoints) {
+            if (endpoint.apiKey.equals(DEFAULT_KEY)) continue;
+            
+            String json = buildJsonPayload(playersJsonArray, endpoint.apiKey);
+            HttpRequest request = buildRequest(json, endpoint.url);
+            CompletableFuture<Boolean> reqFuture = httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .orTimeout(HTTP_TIMEOUT.toSeconds(), TimeUnit.SECONDS)
+                    .thenApply(response -> {
+                        handleResponse(response, endpoint.url);
+                        return response.statusCode() >= 200 && response.statusCode() < 300;
+                    })
+                    .exceptionally(e -> {
+                        handleError(e, endpoint.url);
+                        return false;
+                    });
+            
+            overallFuture = overallFuture.thenCombine(reqFuture, (a, b) -> a && b);
+        }
+
+        return overallFuture;
     }
 
     private boolean isConfigured() {
-        return apiKey != null && !apiKey.isEmpty() && !apiKey.equals(DEFAULT_KEY);
-    }
-
-    private String buildJsonPayload(java.util.Collection<com.hypixel.hytale.server.core.universe.PlayerRef> players) {
-        String serverVersion = ManifestUtil.getImplementationVersion();
-        if (serverVersion == null) serverVersion = "unknown";
-        
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\"apiKey\":\"").append(escapeJson(apiKey))
-          .append("\",\"serverVersion\":\"").append(escapeJson(serverVersion))
-          .append("\",\"players\":[");
-        boolean first = true;
-        for (com.hypixel.hytale.server.core.universe.PlayerRef p : players) {
-            if (!first) sb.append(",");
-            sb.append("{\"uuid\":\"").append(p.getUuid().toString())
-              .append("\",\"name\":\"").append(escapeJson(p.getUsername())).append("\"}");
-            first = false;
+        for (EndpointConfig ep : endpoints) {
+            if (!ep.apiKey.equals(DEFAULT_KEY)) return true;
         }
-        sb.append("]}");
-        return sb.toString();
+        return false;
     }
 
-    private HttpRequest buildRequest(String json) {
+    private String buildPlayersJson(Universe universe) {
+        StringBuilder playersJson = new StringBuilder("[");
+        boolean first = true;
+        try {
+            for (Object playerObj : universe.getPlayers()) {
+                if (!first) playersJson.append(",");
+                first = false;
+                String name = "";
+                String uuid = "";
+                try {
+                    name = (String) playerObj.getClass().getMethod("getName").invoke(playerObj);
+                    uuid = playerObj.getClass().getMethod("getUuid").invoke(playerObj).toString();
+                } catch (Exception e) {
+                    name = "Unknown";
+                    uuid = UUID.randomUUID().toString();
+                }
+                playersJson.append(String.format("{\"uuid\":\"%s\",\"name\":\"%s\"}", escapeJson(uuid), escapeJson(name)));
+            }
+        } catch (Exception ignored) {}
+        playersJson.append("]");
+        return playersJson.toString();
+    }
+
+    private String buildJsonPayload(String playersJsonArray, String targetApiKey) {
+        return String.format(
+                "{\"api_key\":\"%s\",\"serverVersion\":\"Hytale\",\"players\":%s}",
+                escapeJson(targetApiKey),
+                playersJsonArray
+        );
+    }
+
+    private HttpRequest buildRequest(String json, String endpoint) {
         return HttpRequest.newBuilder()
-                .uri(URI.create(API_URL))
+                .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .header("User-Agent", "ListaServers-Plugin/1.0.0")
@@ -239,7 +382,7 @@ public class ListaServersPlugin extends JavaPlugin {
                 .build();
     }
 
-    private void handleResponse(HttpResponse<String> response) {
+    private void handleResponse(HttpResponse<String> response, String endpoint) {
         int status = response.statusCode();
 
         if (status >= 200 && status < 300) {
@@ -248,15 +391,15 @@ public class ListaServersPlugin extends JavaPlugin {
             lastErrorMessage = null;
         } else {
             consecutiveFailures++;
-            lastErrorMessage = "HTTP " + status + ": " + truncate(response.body(), 100);
+            lastErrorMessage = "HTTP " + status + " da " + endpoint + ": " + truncate(response.body(), 100);
             logError("Risposta API: " + lastErrorMessage);
         }
     }
 
-    private Void handleError(Throwable e) {
+    private Void handleError(Throwable e, String endpoint) {
         consecutiveFailures++;
         Throwable cause = e.getCause() != null ? e.getCause() : e;
-        lastErrorMessage = cause.getClass().getSimpleName() + ": " + cause.getMessage();
+        lastErrorMessage = cause.getClass().getSimpleName() + " verso " + endpoint + ": " + cause.getMessage();
         logError("Errore comunicazione: " + lastErrorMessage);
         return null;
     }
@@ -298,7 +441,7 @@ public class ListaServersPlugin extends JavaPlugin {
             super("listaservers", "Gestione plugin ListaServers.it");
             this.actionArg = withRequiredArg(
                     "action",
-                    "Azione: reload | status | ping",
+                    "Azione: reload | status | test",
                     ArgTypes.STRING
             );
         }
@@ -310,7 +453,7 @@ public class ListaServersPlugin extends JavaPlugin {
             switch (action) {
                 case "reload" -> handleReload(ctx);
                 case "status" -> handleStatus(ctx);
-                case "ping" -> handleTest(ctx);
+                case "test" -> handleTest(ctx);
                 default -> sendHelp(ctx);
             }
         }
@@ -323,26 +466,27 @@ public class ListaServersPlugin extends JavaPlugin {
                 send(ctx, "Invio aggiornamento di test...");
                 sendUpdateAsync().thenAccept(success -> {
                     if (success) {
-                        send(ctx, "Ping inviato con successo a ListaServers.it!");
+                        send(ctx, "Aggiornamento inviato con successo!");
                     } else {
                         send(ctx, "Errore nell'invio. Controlla la console.");
                     }
                 });
             } else {
-                send(ctx, "API Key non configurata! Inseriscila nel config.json");
+                send(ctx, "API Key non configurata!");
             }
         }
 
         private void handleStatus(CommandContext ctx) {
             send(ctx, "═══ ListaServers Status ═══");
+            send(ctx, "Node ID: " + nodeId);
             send(ctx, "API Key: " + (isConfigured() ? "Configurata" : "Non configurata"));
             send(ctx, "Giocatori: " + lastPlayerCount);
 
             if (lastSuccessfulUpdate != null) {
                 long secsAgo = Duration.between(lastSuccessfulUpdate, Instant.now()).toSeconds();
-                send(ctx, "Ultimo ping: " + secsAgo + "s fa");
+                send(ctx, "Ultimo sync: " + secsAgo + "s fa");
             } else {
-                send(ctx, "Ultimo ping: Mai");
+                send(ctx, "Ultimo sync: Mai");
             }
 
             if (consecutiveFailures > 0) {
@@ -351,7 +495,7 @@ public class ListaServersPlugin extends JavaPlugin {
                     send(ctx, "Ultimo errore: " + lastErrorMessage);
                 }
             } else {
-                send(ctx, "Stato: Operativo e Connesso");
+                send(ctx, "Stato: Operativo");
             }
         }
 
@@ -361,21 +505,21 @@ public class ListaServersPlugin extends JavaPlugin {
                 return;
             }
 
-            send(ctx, "Invio richiesta di ping forzato...");
+            send(ctx, "Invio richiesta di test...");
             sendUpdateAsync().thenAccept(success -> {
                 if (success) {
-                    send(ctx, "Ping completato con successo!");
+                    send(ctx, "Test completato con successo!");
                 } else {
-                    send(ctx, "Ping fallito: " + (lastErrorMessage != null ? lastErrorMessage : "Errore sconosciuto"));
+                    send(ctx, "Test fallito: " + (lastErrorMessage != null ? lastErrorMessage : "Errore sconosciuto"));
                 }
             });
         }
 
         private void sendHelp(CommandContext ctx) {
             send(ctx, "═══ ListaServers Comandi ═══");
-            send(ctx, "/listaservers reload - Ricarica la configurazione dal file config.json");
-            send(ctx, "/listaservers status - Mostra lo stato di connessione con ListaServers.it");
-            send(ctx, "/listaservers ping - Forza l'invio immediato dei dati al sito");
+            send(ctx, "/listaservers reload - Ricarica la configurazione");
+            send(ctx, "/listaservers status - Mostra lo stato del plugin");
+            send(ctx, "/listaservers test - Testa la connessione API");
         }
 
         private void send(CommandContext ctx, String msg) {
