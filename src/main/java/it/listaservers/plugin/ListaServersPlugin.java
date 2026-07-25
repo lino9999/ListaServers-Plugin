@@ -52,7 +52,6 @@ public class ListaServersPlugin extends JavaPlugin {
     private final String nodeId = UUID.randomUUID().toString();
     private List<EndpointConfig> endpoints = new ArrayList<>();
 
-    // Statistiche runtime
     private volatile int lastPlayerCount = 0;
     private volatile Instant lastSuccessfulUpdate = null;
     private volatile int consecutiveFailures = 0;
@@ -175,12 +174,10 @@ public class ListaServersPlugin extends JavaPlugin {
     private void parseConfig(String content) {
         endpoints.clear();
         
-        // Controllo se è un vecchio config (api_key nella root)
         Pattern oldKeyPattern = Pattern.compile("\"api_key\"\\s*:\\s*\"([^\"]+)\"");
         Matcher oldKeyMatcher = oldKeyPattern.matcher(content);
         boolean hasOldRootKey = false;
         
-        // Verifica rapida: se non ha "endpoints", probabilmente è il vecchio formato
         if (!content.contains("\"endpoints\"") && oldKeyMatcher.find()) {
             hasOldRootKey = true;
             String oldKey = oldKeyMatcher.group(1).trim();
@@ -188,7 +185,6 @@ public class ListaServersPlugin extends JavaPlugin {
             
             endpoints.add(new EndpointConfig(DEFAULT_ENDPOINT, oldKey));
             
-            // Riscrive il file nel nuovo formato
             String migratedConfig = """
                 {
                   // ==========================================================
