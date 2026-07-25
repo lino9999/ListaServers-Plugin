@@ -174,6 +174,9 @@ public class ListaServersPlugin extends JavaPlugin {
     private void parseConfig(String content) {
         endpoints.clear();
         
+        // Rimuove i commenti (linee che iniziano con //) per evitare che il regex legga gli esempi
+        content = content.replaceAll("(?m)^\\s*//.*$", "");
+        
         Pattern oldKeyPattern = Pattern.compile("\"api_key\"\\s*:\\s*\"([^\"]+)\"");
         Matcher oldKeyMatcher = oldKeyPattern.matcher(content);
         boolean hasOldRootKey = false;
