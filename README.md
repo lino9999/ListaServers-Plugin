@@ -20,6 +20,9 @@ Questa architettura ti permette di installare il plugin su **server multipli** (
 
 Non vengono trasmessi log delle chat, indirizzi IP o configurazioni sensibili del server.
 
+> **⚠️ Nota sulla Privacy e Consenso (GDPR)**
+> Installando e utilizzando questo plugin, acconsenti alla trasmissione dei metadati (inclusi i nickname pubblici dei giocatori) a ListaServers.it a scopo statistico e come misura di sicurezza anti-bot. Il proprietario del server agisce in qualità di Titolare dei Dati per la propria community ed è tenuto a informare i giocatori, in conformità con i Termini di Servizio (ToS) di ListaServers.it.
+
 ## Installazione
 
 1. Scarica il file `.jar` compilato del plugin dalla pagina Releases.
