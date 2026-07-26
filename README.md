@@ -68,8 +68,8 @@ Il plugin effettua una singola richiesta HTTP `POST` asincrona ogni 60 secondi v
 **Corpo della richiesta (JSON):**
 ```json
 {
-  "apiKey": "LA_CHIAVE_API_DELL_UTENTE",
-  "serverVersion": "1.0.0",
+  "api_key": "LA_CHIAVE_API_DELL_UTENTE",
+  "serverVersion": "Hytale",
   "players": [
     {
       "uuid": "550e8400-e29b-41d4-a716-446655440000",
@@ -88,8 +88,8 @@ Il plugin effettua una singola richiesta HTTP `POST` asincrona ogni 60 secondi v
 ```
 
 ### Dettagli sui Dati
-- **apiKey**: La stringa inserita dall'utente nel file di configurazione, essenziale per autenticare e identificare a quale server appartengono le statistiche.
-- **serverVersion**: La versione del server Hytale.
+- **api_key**: La stringa inserita dall'utente nel file di configurazione, essenziale per autenticare e identificare a quale server appartengono le statistiche.
+- **serverVersion**: Attualmente impostato sempre sulla stringa fissa "Hytale".
 - **players**: La lista esatta dei giocatori online al momento dell'invio. 
 
 ### Risposte e Codici di Stato

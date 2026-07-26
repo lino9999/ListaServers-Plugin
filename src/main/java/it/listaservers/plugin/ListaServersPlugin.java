@@ -353,9 +353,15 @@ public class ListaServersPlugin extends JavaPlugin {
     }
 
     private String buildJsonPayload(String playersJsonArray, String targetApiKey) {
+        String serverVersion = "Sconosciuta";
+        try {
+            serverVersion = com.hypixel.hytale.common.util.java.ManifestUtil.getImplementationVersion();
+        } catch (Exception ignored) {}
+
         return String.format(
-                "{\"api_key\":\"%s\",\"serverVersion\":\"Hytale\",\"players\":%s}",
+                "{\"api_key\":\"%s\",\"serverVersion\":\"%s\",\"players\":%s}",
                 escapeJson(targetApiKey),
+                escapeJson(serverVersion),
                 playersJsonArray
         );
     }
